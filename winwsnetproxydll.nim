@@ -5,6 +5,7 @@ import strutils
 
 import struct/struct
 import ws/ws
+import winim/lean
 
 proc error*(message: string, exception: ref Exception) =
     echo message
@@ -121,5 +122,13 @@ proc cb(req: Request) {.async.} =
   except:
      echo "websocket client disconnected?"
      error("oops", getCurrentException())
+     
+proc NimMain() {.cdecl, importc.}
 
-waitFor server.serve(Port(8700), cb)
+proc DllMain(hinstDLL: HINSTANCE, fdwReason: DWORD, lpvReserved: LPVOID) : BOOL {.stdcall, exportc, dynlib.} =
+  NimMain()
+  
+  if fdwReason == DLL_PROCESS_ATTACH:
+    waitFor server.serve(Port(8700), cb)
+
+  return true
