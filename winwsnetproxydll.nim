@@ -43,7 +43,7 @@ func getERR*(token: string, reason: string, extra: string): string {.inline.} =
   return pack(">IH", len(token)+len(data)+6, 1) & token & data
 
 proc handleClientIn(client: AsyncSocket, ws:WebSocket, token:string) {.async.} =
-  echo "handleClientIn"
+  #echo "handleClientIn"
   while client.isClosed == false and ws.readyState == Open:
     try:
       var data = await client.recv(65536)
@@ -55,7 +55,7 @@ proc handleClientIn(client: AsyncSocket, ws:WebSocket, token:string) {.async.} =
       await ws.send(getOK(token), Opcode.Binary)
       break
   
-  echo "Client socket closing!"
+  #echo "Client socket closing!"
 
 var server = newAsyncHttpServer()
 
@@ -90,10 +90,10 @@ proc cb(req: Request) {.async.} =
                 var portdata = unpack(">H", x[30 .. 31])
                 var port = portdata[0].getInt()
                 try:
-                  echo "opensocket"
+                  #echo "opensocket"
                   var socket = newAsyncSocket(buffered = false)
                   await socket.connect($ip, port.Port)
-                  echo("Connected!")
+                  #echo("Connected!")
                   asyncCheck handleClientIn(socket, ws, token)
                   dispatchTable[token] = socket
                   await ws.send(getCONT(token), Opcode.Binary)
@@ -104,16 +104,16 @@ proc cb(req: Request) {.async.} =
               elif iptype == '\xff':
                 var hostnamelen_s = unpack(">I", x[26 .. 30])
                 var hostnamelen = hostnamelen_s[0].getInt()
-                var ip = x[30 .. 30+hostnamelen]
+                var ip = x[30 .. 29+hostnamelen]
                 var portdata = unpack(">H", x[30+hostnamelen .. 30+hostnamelen+1])
                 var port = portdata[0].getInt()
 
                 try:
-                  echo "opensocket"
-                  echo $ip & $port
+                  #echo "opensocket"
+                  #echo repr(ip)
                   var socket = newAsyncSocket(buffered = false)
                   await socket.connect($ip, port.Port)
-                  echo("Connected!")
+                  #echo("Connected!")
                   asyncCheck handleClientIn(socket, ws, token)
                   dispatchTable[token] = socket
                   await ws.send(getCONT(token), Opcode.Binary)
