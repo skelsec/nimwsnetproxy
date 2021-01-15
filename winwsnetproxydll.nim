@@ -1,11 +1,11 @@
 
+import winim/lean
 import tables
 import asyncdispatch, asynchttpserver, asyncnet 
 import strutils
 
 import struct/struct
 import ws/ws
-import winim/lean
 
 proc error*(message: string, exception: ref Exception) =
     echo message
@@ -21,8 +21,6 @@ func toString*(bytes: openArray[byte]): string {.inline.} =
   if length > 0:
     result = newString(length)
     copyMem(result.cstring, bytes[0].unsafeAddr, length)
-
-
 
 func getSD*(token: string, data: string): string {.inline.} =
   ## generates an OK command
@@ -87,20 +85,42 @@ proc cb(req: Request) {.async.} =
               var com = unpack(">3sb", x[22 .. 26])
               var protocol = com[0].getString()
               var iptype = com[1].getChar()
-              #if iptype == '\x04':
-              var ip = intToStr(ord(x[26])) & "." & intToStr(ord(x[27])) & "." & intToStr(ord(x[28])) & "." & intToStr(ord(x[29]))
-              var portdata = unpack(">H", x[30 .. 31])
-              var port = portdata[0].getInt()
-              var socket = newAsyncSocket(buffered = false)
-              try:
-                await socket.connect($ip, port.Port)
-                echo("Connected!")
-                asyncCheck handleClientIn(socket, ws, token)
-                dispatchTable[token] = socket
-                await ws.send(getCONT(token), Opcode.Binary)
-              except:
-                await ws.send(getERR(token, "Could not open socket", ""), Opcode.Binary)
-              continue
+              if iptype == '\x04':
+                var ip = intToStr(ord(x[26])) & "." & intToStr(ord(x[27])) & "." & intToStr(ord(x[28])) & "." & intToStr(ord(x[29]))
+                var portdata = unpack(">H", x[30 .. 31])
+                var port = portdata[0].getInt()
+                try:
+                  echo "opensocket"
+                  var socket = newAsyncSocket(buffered = false)
+                  await socket.connect($ip, port.Port)
+                  echo("Connected!")
+                  asyncCheck handleClientIn(socket, ws, token)
+                  dispatchTable[token] = socket
+                  await ws.send(getCONT(token), Opcode.Binary)
+                except:
+                  await ws.send(getERR(token, "Could not open socket", ""), Opcode.Binary)
+                  continue
+
+              elif iptype == '\xff':
+                var hostnamelen_s = unpack(">I", x[26 .. 30])
+                var hostnamelen = hostnamelen_s[0].getInt()
+                var ip = x[30 .. 30+hostnamelen]
+                var portdata = unpack(">H", x[30+hostnamelen .. 30+hostnamelen+1])
+                var port = portdata[0].getInt()
+
+                try:
+                  echo "opensocket"
+                  echo $ip & $port
+                  var socket = newAsyncSocket(buffered = false)
+                  await socket.connect($ip, port.Port)
+                  echo("Connected!")
+                  asyncCheck handleClientIn(socket, ws, token)
+                  dispatchTable[token] = socket
+                  await ws.send(getCONT(token), Opcode.Binary)
+                except:
+                  error("Could not open socket", getCurrentException())
+                  await ws.send(getERR(token, "Could not open socket", ""), Opcode.Binary)
+                  continue          
 
         else:
           var payload = x[22 .. len(x)-1]
